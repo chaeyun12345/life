@@ -1,0 +1,17 @@
+# Personal records and backups
+data/
+DAYFLOW_백업_*.json
+*.previous.json
+*.tmp
+
+# Device-local Windows font
+ui-font.ttf
+
+# Local configuration and generated files
+.env
+.env.*
+!.env.example
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
