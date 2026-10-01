@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import {spawn} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+test('파일 저장·재실행·충돌 보호·입력 검증',async()=>{const temp=await fs.mkdtemp(path.join(os.tmpdir(),'dayflow-test-'));let child;const base='http://127.0.0.1:4175';async function start(){child=spawn(process.execPath,['server.js'],{cwd:root,env:{...process.env,DAYFLOW_PORT:'4175',DAYFLOW_DATA_DIR:temp},stdio:'pipe'});await new Promise((resolve,reject)=>{child.stdout.on('data',b=>{if(b.toString().includes('DAYFLOW http'))resolve()});child.on('error',reject);child.on('exit',n=>reject(new Error('Server exited '+n)));setTimeout(()=>reject(new Error('Start timeout')),5000).unref()})}async function stop(){if(!child)return;const c=child;child=null;const exited=new Promise(resolve=>c.once('exit',resolve));c.kill();await exited}const get=()=>fetch(base+'/api/data').then(r=>r.json());const put=d=>fetch(base+'/api/data',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+try{await start();const original=await get();original.notes['2026-10-01']={focus:'한글 저장 확인',memo:'재실행해도 남아야 한다'};const response=await put(original);assert.equal(response.status,200);assert.equal((await response.json()).revision,1);assert.equal((await put(original)).status,409);const bad=await get();bad.transactions[0].amount=-100;assert.equal((await put(bad)).status,400);assert.equal((await fetch(base+'/data/dayflow.json')).status,404);assert.equal((await fetch(base+'/api/data',{headers:{Origin:'https://example.com'}})).status,403);await stop();await start();const saved=await get();assert.equal(saved.notes['2026-10-01'].focus,'한글 저장 확인');assert.equal(saved.revision,1);assert.ok((await fs.stat(path.join(temp,'dayflow.previous.json'))).size>0)}finally{await stop();if(path.resolve(temp).startsWith(path.resolve(os.tmpdir())+path.sep+'dayflow-test-'))await fs.rm(temp,{recursive:true,force:true})}});
